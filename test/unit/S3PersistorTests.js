@@ -37,6 +37,7 @@ describe('S3PersistorTests', function () {
     Stream,
     S3Persistor,
     S3Client,
+    S3ReadRequest,
     S3ReadStream,
     S3NotFoundError,
     S3AccessDeniedError,
@@ -107,10 +108,15 @@ describe('S3PersistorTests', function () {
       unpipe: sinon.stub(),
       resume: sinon.stub()
     })
+    S3ReadRequest = {
+      on: sinon
+        .stub()
+        .withArgs('httpHeaders')
+        .callsArgWith(1, 200, { 'x-amz-request-id': '123456' }),
+      createReadStream: sinon.stub().returns(S3ReadStream)
+    }
     S3Client = {
-      getObject: sinon.stub().returns({
-        createReadStream: sinon.stub().returns(S3ReadStream)
-      }),
+      getObject: sinon.stub().returns(S3ReadRequest),
       headObject: sinon.stub().returns({
         promise: sinon.stub().resolves({
           ContentLength: objectSize,
@@ -185,6 +191,10 @@ describe('S3PersistorTests', function () {
         expect(S3ReadStream.pipe).to.have.been.calledWith(
           sinon.match.instanceOf(Transform)
         )
+      })
+
+      it('should set headers', async function () {
+        expect(stream.headers).to.exist.and.have.property('x-amz-request-id')
       })
     })
 
@@ -307,6 +317,12 @@ describe('S3PersistorTests', function () {
 
       it('stores the bucket and key in the error', function () {
         expect(error.info).to.include({ bucketName: bucket, key: key })
+      })
+
+      it('should set headers in the error context', async function () {
+        expect(error.info.headers).to.exist.and.have.property(
+          'x-amz-request-id'
+        )
       })
     })
 

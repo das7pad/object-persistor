@@ -90,14 +90,16 @@ module.exports = class S3Persistor extends AbstractPersistor {
       params.Range = `bytes=${opts.start}-${opts.end}`
     }
 
-    const stream = this._getClientForBucket(bucketName)
-      .getObject(params)
-      .createReadStream()
+    const request = this._getClientForBucket(bucketName).getObject(params)
+    const stream = request.createReadStream()
 
     // ingress from S3 to us
     const observer = new PersistorHelper.ObserverStream({
       metric: 's3.ingress',
       Metrics: this.settings.Metrics
+    })
+    request.on('httpHeaders', (statusCode, headers) => {
+      observer.headers = headers
     })
 
     try {
@@ -108,7 +110,7 @@ module.exports = class S3Persistor extends AbstractPersistor {
       throw PersistorHelper.wrapError(
         err,
         'error reading file from S3',
-        { bucketName, key, opts },
+        { bucketName, key, opts, headers: observer.headers },
         ReadError
       )
     }
